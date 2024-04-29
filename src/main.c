@@ -21,7 +21,7 @@
 #include <sys/time.h>
 #endif
 
-// Open GL
+// Open GL,,
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -32,13 +32,13 @@
 
 // Local libs
 #include "util.c"
-#include "draw.c"
 #include "window.c"
 #include "shader.c"
+#include "draw.c"
 #include "timer.c"
 
 // =========================
-// Global Vars
+// Global Varsc
 // =========================
 
 bool paused = false;
@@ -63,47 +63,48 @@ int main(int argc, char* argv[])
     logi("--------------");
     logi("Starting GUI");
     logi("--------------");
-
+    
     time_t t;
     srand((unsigned) time(&t));
-
+    
     init();
-
+    
     timer_set_fps(&main_timer,TARGET_FPS);
     timer_begin(&main_timer);
-
+    
     double curr_time = timer_get_time();
     double new_time  = 0.0;
     double accum = 0.0;
-
+    
     const double dt = 1.0/TARGET_FPS;
-
+    
     // main game loop
     for(;;)
     {
         new_time = timer_get_time();
         double frame_time = new_time - curr_time;
         curr_time = new_time;
-
+        
         accum += frame_time;
-
+        
         window_poll_events();
         if(window_should_close())
             break;
-
+        
         while(accum >= dt)
         {
             //simulate(dt);
             accum -= dt;
         }
-
+        
         draw();
-
+        
         timer_wait_for_frame(&main_timer);
+
         window_swap_buffers();
         window_mouse_update_actions();
     }
-
+    
     deinit();
     return 0;
 }
@@ -111,23 +112,26 @@ int main(int argc, char* argv[])
 void init()
 {
     init_timer();
-
-    logi("resolution: %d %d",VIEW_WIDTH, VIEW_HEIGHT);
+    
+    logi("Resolution: %d %d",VIEW_WIDTH, VIEW_HEIGHT);
     bool success = window_init(VIEW_WIDTH, VIEW_HEIGHT, false);
-
+    
     if(!success)
     {
         fprintf(stderr,"Failed to initialize window!\n");
         exit(1);
     }
-
+    
     logi("Initializing...");
-
+    
     logi(" - Shaders.");
     shader_load_all();
 
+    logi(" - Graphics.");
+    draw_init();
+    
     logi(" Init Complete.");
-
+    
 }
 
 void deinit()
@@ -138,4 +142,8 @@ void deinit()
 
 void draw()
 {
+    draw_clear_screen(0.0,0.0,0.0);
+    draw_rect(10,10,100,100,  color(1.0,0.0,1.0));
+    draw_rect(300,20,500,120, color(0.0,1.0,1.0));
+    draw_commit();
 }

@@ -1,2 +1,2 @@
 #!/bin/sh
-./build.sh && ./bin/moko_utility
+./build.sh && ./bin/cgui

@@ -77,7 +77,7 @@ bool window_init(int _view_width, int _view_height, bool maximized)
 
     // printf("vw: %d, vh: %d\n", view_width, view_height);
     // window = glfwCreateWindow(view_width,view_height,"Postmortem",glfwGetPrimaryMonitor(),NULL);
-    window = glfwCreateWindow(view_width,view_height,"Moko Utility",NULL,NULL);
+    window = glfwCreateWindow(view_width,view_height,"CGUI",NULL,NULL);
 
     if(window == NULL)
     {
@@ -120,7 +120,6 @@ bool window_init(int _view_width, int _view_height, bool maximized)
 
     mouse_left.action = GLFW_RELEASE;
     mouse_right.action = GLFW_RELEASE;
-
 
     monitor = glfwGetPrimaryMonitor();
     // bool ret = get_window_monitor(&monitor, window);
