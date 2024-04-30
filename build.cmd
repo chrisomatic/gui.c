@@ -14,8 +14,12 @@ rmdir /S /Q %dirbuild% %dirbin%
 echo Creating new build directories
 mkdir %dirbuild%
 mkdir %dirbin%
+mkdir %dirbin%\src\shaders
+mkdir %dirbin%\src\fonts
 
-xcopy .\dlls\*.dll %dirbin%
+xcopy /Y .\dlls\*.dll %dirbin%
+xcopy /Y ..\src\shaders\*.glsl %dirbin%\src\shaders\
+xcopy /Y ..\src\fonts\* %dirbin%\src\fonts\
 
 set srcfiles=%dirsrc%\main.c
 

@@ -1,6 +1,9 @@
 
 #define MAX_RECTS 1024
 
+#define FONT_PATH_IMAGE  "src/fonts/atlas.png"
+#define FONT_PATH_LAYOUT "src/fonts/atlas_layout.csv"
+
 static GLuint vao;
 static GLuint vbo;
 
@@ -21,11 +24,119 @@ typedef struct
     Vec4f color;
 } Rect;
 
+typedef struct
+{
+    int w,h,n;
+    unsigned char* data;
+    int texture;
+} Image;
+
+typedef struct
+{
+    float l,b,r,t;
+} CharBox;
+
+typedef struct
+{
+    float advance;
+    CharBox plane_box;
+    CharBox pixel_box;
+    CharBox tex_coords;
+    float w,h;
+} FontChar;
+
+static FontChar font_chars[255];
+int font_image;
+
 Rect queued_rects[MAX_RECTS] = {0};
 int  rect_count = 0;
 
 GLuint loc_res;
 GLuint loc_verts[4];
+
+bool load_image(const char* image_path, Image* image, bool flip)
+{
+    stbi_set_flip_vertically_on_load(flip);
+    image->data = stbi_load(image_path, &image->w, &image->h, &image->n, 4);
+
+    if(!image->data)
+    {
+        loge("Failed to load image: %s", image_path);
+        return false;
+    }
+
+    logi("Loaded image: %s (w: %d, h: %d, n: %d)", image_path, image->w, image->h, image->n);
+
+    glGenTextures(1, &image->texture);
+
+	glBindTexture(GL_TEXTURE_2D, image->texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->w, image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return true;
+}
+
+void load_font()
+{
+    Image font_img = {0};
+
+    bool loaded = load_image(FONT_PATH_IMAGE, &font_img, true);
+    if(!loaded) return;
+
+    logi("Font loaded at index: %d", font_img.texture);
+
+    FILE* fp = fopen(FONT_PATH_LAYOUT,"r");
+
+    if(!fp)
+    {
+        logw("Failed to load font layout file");
+        return;
+    }
+
+    char line[256] = {0};
+
+    while(fgets(line,255,fp) != NULL)
+    {
+        int char_index = 0;
+        float advance, pl_l, pl_b, pl_r, pl_t,  px_l, px_b, px_r, px_t;
+
+        int n = sscanf(line,"%d,%f,%f,%f,%f,%f,%f,%f,%f,%f ",&char_index,&advance,&pl_l, &pl_b, &pl_r, &pl_t, &px_l, &px_b, &px_r, &px_t);
+
+        if(n != 10)
+            continue;
+
+        font_chars[char_index].advance = advance;
+
+        font_chars[char_index].plane_box.l = pl_l;
+        font_chars[char_index].plane_box.b = pl_b;
+        font_chars[char_index].plane_box.r = pl_r;
+        font_chars[char_index].plane_box.t = pl_t;
+
+        font_chars[char_index].pixel_box.l = px_l;
+        font_chars[char_index].pixel_box.b = px_b;
+        font_chars[char_index].pixel_box.r = px_r;
+        font_chars[char_index].pixel_box.t = px_t;
+
+        font_chars[char_index].tex_coords.l = px_l/404.0;
+        font_chars[char_index].tex_coords.b = 1.0 - (px_b/404.0);
+        font_chars[char_index].tex_coords.r = px_r/404.0;
+        font_chars[char_index].tex_coords.t = 1.0 - (px_t/404.0);
+
+        font_chars[char_index].w = px_r - px_l;
+        font_chars[char_index].h = px_b - px_t;
+
+        // printf("font_char %d: %f [%f %f %f %f], [%f %f %f %f], [%f %f %f %f]\n",char_index,advance,pl_l,pl_b,pl_r,pl_t,px_l,px_b,px_r,px_t,px_l/512.0,px_b/512.0,px_r/512.0,px_t/512.0);
+    }
+
+    fclose(fp);
+}
 
 void draw_init()
 {
@@ -60,6 +171,9 @@ void draw_init()
     loc_verts[1] = glGetUniformLocation(program, "verts[1]");
     loc_verts[2] = glGetUniformLocation(program, "verts[2]");
     loc_verts[3] = glGetUniformLocation(program, "verts[3]");
+
+    load_font();
+
 }
 
 Vec4f color(float r, float g, float b)
