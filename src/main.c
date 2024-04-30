@@ -143,7 +143,11 @@ void deinit()
 void draw()
 {
     draw_clear_screen(0.0,0.0,0.0);
-    draw_rect(10,10,100,100,  color(1.0,0.0,1.0));
-    draw_rect(300,20,500,120, color(0.0,1.0,1.0));
+
+    // draw stuff
+    draw_rect(10,10,100,100, MAGENTA, BLUE);
+    draw_rect(300,20,500,120,GREEN, GRAY);
+    draw_string(14,14,0.3, WHITE, "Hello\nKam");
+
     draw_commit();
 }

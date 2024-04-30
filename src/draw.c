@@ -1,5 +1,24 @@
 
+//
+// API:
+//
+// void draw_clear_screen(float r, float g, float b);
+// void draw_rect(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+// void draw_string(float x, float y, float scale, Vec4f color, char* format, ...);
+// void draw_commit(); // needs to be called at the end of frame
+//
+
 #define MAX_RECTS 1024
+
+#define WHITE   color(1.0,1.0,1.0)
+#define BLACK   color(0.0,0.0,0.0)
+#define GRAY    color(0.5,0.5,0.5)
+#define RED     color(1.0,0.0,0.0)
+#define GREEN   color(0.0,1.0,0.0)
+#define BLUE    color(0.0,0.0,1.0)
+#define MAGENTA color(1.0,0.0,1.0)
+#define YELLOW  color(1.0,1.0,0.0)
+#define CYAN    color(0.0,1.0,1.0)
 
 #define FONT_PATH_IMAGE  "src/fonts/atlas.png"
 #define FONT_PATH_LAYOUT "src/fonts/atlas_layout.csv"
@@ -19,10 +38,14 @@ typedef struct
 
 typedef struct
 {
-    Vec2f p0; // top left
-    Vec2f p1; // bottom right
-    Vec4f color;
-} Rect;
+    Vec2f p0;     // top left on screen
+    Vec2f p1;     // bottom right on screen
+    Vec2f tex_p0; // top left on texture
+    Vec2f tex_p1; // bottom right on texture
+    Vec4f colors[4];
+    float corner_radius;
+    float edge_softness;
+} DrawRect;
 
 typedef struct
 {
@@ -46,13 +69,26 @@ typedef struct
 } FontChar;
 
 static FontChar font_chars[255];
-int font_image;
+Image font_image = {0};
 
-Rect queued_rects[MAX_RECTS] = {0};
+DrawRect queued_rects[MAX_RECTS] = {0};
 int  rect_count = 0;
 
 GLuint loc_res;
+GLuint loc_font_image;
 GLuint loc_verts[4];
+
+Vec4f color(float r, float g, float b)
+{
+    Vec4f c = {r,g,b,1.0};
+    return c;
+}
+
+Vec4f colora(float r, float g, float b, float a)
+{
+    Vec4f c = {r,g,b,a};
+    return c;
+}
 
 bool load_image(const char* image_path, Image* image, bool flip)
 {
@@ -85,12 +121,10 @@ bool load_image(const char* image_path, Image* image, bool flip)
 
 void load_font()
 {
-    Image font_img = {0};
-
-    bool loaded = load_image(FONT_PATH_IMAGE, &font_img, true);
+    bool loaded = load_image(FONT_PATH_IMAGE, &font_image, false);
     if(!loaded) return;
 
-    logi("Font loaded at index: %d", font_img.texture);
+    logi("Font loaded at index: %d", font_image.texture);
 
     FILE* fp = fopen(FONT_PATH_LAYOUT,"r");
 
@@ -142,7 +176,7 @@ void draw_init()
 {
     logi("GL version: %s",glGetString(GL_VERSION));
 
-    memset(queued_rects, 0, MAX_RECTS*sizeof(Rect));
+    memset(queued_rects, 0, MAX_RECTS*sizeof(DrawRect));
     rect_count = 0;
 
     glGenVertexArrays(1, &vao);
@@ -150,14 +184,28 @@ void draw_init()
 
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, MAX_RECTS*sizeof(Rect), NULL, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, MAX_RECTS*sizeof(DrawRect), NULL, GL_STREAM_DRAW);
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Rect),(const GLvoid*)(0)); // p0
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(0)); // p0
     glVertexAttribDivisor(0, 1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Rect),(const GLvoid*)(8)); // p1
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(8)); // p1
     glVertexAttribDivisor(1, 1);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Rect),(const GLvoid*)(16)); // color
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(16)); // tex_p0
     glVertexAttribDivisor(2, 1);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(24)); // tex_p1
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(32)); // colors[0]
+    glVertexAttribDivisor(4, 1);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(48)); // colors[1]
+    glVertexAttribDivisor(5, 1);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(64)); // colors[2]
+    glVertexAttribDivisor(6, 1);
+    glVertexAttribPointer(7, 4, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(80)); // colors[3]
+    glVertexAttribDivisor(7, 1);
+    glVertexAttribPointer(8, 1, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(96)); // corner_radius
+    glVertexAttribDivisor(8, 1);
+    glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(100)); // edge_softness
+    glVertexAttribDivisor(9, 1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -166,6 +214,7 @@ void draw_init()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     loc_res = glGetUniformLocation(program, "res");
+    loc_font_image = glGetUniformLocation(program, "font_image");
 
     loc_verts[0] = glGetUniformLocation(program, "verts[0]");
     loc_verts[1] = glGetUniformLocation(program, "verts[1]");
@@ -176,25 +225,13 @@ void draw_init()
 
 }
 
-Vec4f color(float r, float g, float b)
-{
-    Vec4f c = {r,g,b,1.0};
-    return c;
-}
-
-Vec4f colora(float r, float g, float b, float a)
-{
-    Vec4f c = {r,g,b,a};
-    return c;
-}
-
 void draw_clear_screen(float r, float g, float b)
 {
     glClearColor(r, g, b, 0.0);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void draw_rect(float x0, float y0, float x1, float y1, Vec4f color)
+void draw_rect(float x, float y, float w, float h, Vec4f color1, Vec4f color2)
 {
     if(rect_count >= MAX_RECTS)
     {
@@ -202,23 +239,151 @@ void draw_rect(float x0, float y0, float x1, float y1, Vec4f color)
         return;
     }
 
-    Rect* rect = &queued_rects[rect_count++];
+    DrawRect* rect = &queued_rects[rect_count++];
 
-    rect->p0.x = x0;
-    rect->p0.y = y0;
-    rect->p1.x = x1;
-    rect->p1.y = y1;
+    rect->p0.x = x;
+    rect->p0.y = y;
+    rect->p1.x = x+w;
+    rect->p1.y = y+h;
 
-    rect->color.x = color.x;
-    rect->color.y = color.y;
-    rect->color.z = color.z;
-    rect->color.w = color.w;
+    rect->tex_p0.x = 0.0;
+    rect->tex_p0.y = 0.0;
+    rect->tex_p1.x = 0.0;
+    rect->tex_p1.y = 0.0;
+
+    for(int i = 0; i < 4; ++i)
+    {
+        rect->colors[i].x = i < 2 ? color1.x : color2.x;
+        rect->colors[i].y = i < 2 ? color1.y : color2.y;
+        rect->colors[i].z = i < 2 ? color1.z : color2.z;
+        rect->colors[i].w = i < 2 ? color1.w : color2.w;
+    }
+
+    rect->corner_radius = 10.0;
+    rect->edge_softness = 1.0;
+}
+
+// w,h
+Vec2f string_get_size(float scale, char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    char str[256] = {0};
+    vsprintf(str,fmt, args);
+    va_end(args);
+
+    float x_pos = 0.0;
+    float fontsize = 64.0 * scale;
+    int num_lines = 1;
+    float longest_width = 0.0;
+
+    char* c = str;
+
+    for(;;)
+    {
+        if(*c == '\0')
+            break;
+
+        if(*c == '\n')
+        {
+            num_lines++;
+            if(x_pos > longest_width)
+                longest_width = x_pos;
+            x_pos = 0.0;
+            c++;
+            continue;
+        }
+
+        FontChar* fc = &font_chars[*c];
+
+        x_pos += (fontsize*fc->advance);
+        c++;
+    }
+
+    if(x_pos > longest_width)
+        longest_width = x_pos;
+
+    Vec2f ret = {longest_width, fontsize*num_lines};
+    return ret;
+}
+
+void draw_string(float x, float y, float scale, Vec4f color, char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    char str[256] = {0};
+    vsprintf(str, format, args);
+    va_end(args);
+
+    float fontsize = 64.0 * scale;
+
+    float x_pos = x;
+    float y_pos = y+fontsize;
+
+    int num_lines = 1;
+
+    char* c = str;
+
+    for(;;)
+    {
+        if(*c == '\0')
+            break;
+
+        if(*c == '\n')
+        {
+            y_pos += fontsize;
+            x_pos = x;
+            num_lines++;
+            c++;
+            continue;
+        }
+
+        if(rect_count >= MAX_RECTS)
+        {
+            logw("Hit rect count max, failed to queue drawing routine");
+            break;
+        }
+
+        FontChar* fc = &font_chars[*c];
+
+        float x0 = x_pos + fontsize*fc->plane_box.l;
+        float y0 = y_pos - fontsize*fc->plane_box.t;
+        float x1 = x_pos + fontsize*fc->plane_box.r;
+        float y1 = y_pos - fontsize*fc->plane_box.b;
+
+        DrawRect* rect = &queued_rects[rect_count++];
+
+        rect->p0.x = x0;
+        rect->p0.y = y0;
+        rect->p1.x = x1;
+        rect->p1.y = y1;
+
+        rect->tex_p0.x = fc->tex_coords.l;
+        rect->tex_p0.y = fc->tex_coords.t;
+        rect->tex_p1.x = fc->tex_coords.r;
+        rect->tex_p1.y = fc->tex_coords.b;
+
+        for(int i = 0; i < 4; ++i)
+        {
+            rect->colors[i].x = color.x;
+            rect->colors[i].y = color.y;
+            rect->colors[i].z = color.z;
+            rect->colors[i].w = color.w;
+        }
+
+        c++;
+        x_pos += (fontsize*fc->advance);
+    }
 }
 
 void draw_commit()
 {
     glUseProgram(program);
     glBindVertexArray(vao);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, font_image.texture);
+    glUniform1i(loc_font_image, 0);
 
     glUniform2f(loc_res,(float)view_width, (float)view_height);
 
@@ -229,12 +394,19 @@ void draw_commit()
 
     // buffer new rect data
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, rect_count*sizeof(Rect), queued_rects, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, rect_count*sizeof(DrawRect), queued_rects, GL_STREAM_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(3);
+    glEnableVertexAttribArray(4);
+    glEnableVertexAttribArray(5);
+    glEnableVertexAttribArray(6);
+    glEnableVertexAttribArray(7);
+    glEnableVertexAttribArray(8);
+    glEnableVertexAttribArray(9);
 
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, rect_count); 
     rect_count = 0;
@@ -242,8 +414,14 @@ void draw_commit()
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(2);
+    glDisableVertexAttribArray(3);
+    glDisableVertexAttribArray(4);
+    glDisableVertexAttribArray(5);
+    glDisableVertexAttribArray(6);
+    glDisableVertexAttribArray(7);
+    glDisableVertexAttribArray(8);
+    glDisableVertexAttribArray(9);
 
     glBindVertexArray(0);
     glUseProgram(0);
 }
-

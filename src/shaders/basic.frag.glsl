@@ -1,9 +1,65 @@
 #version 330 core
 
 in vec4 color0;
+in vec2 uv0;
+
+in vec2 dst_half_size0;
+in vec2 dst_center0;
+in vec2 dst_pos0;
+in float corner_radius0;
+in float edge_softness0;
+
 out vec4 frag_color;
+
+uniform sampler2D font_image;
+
+float screenPxRange() {
+    vec2 unitRange = vec2(4.0)/vec2(textureSize(font_image, 0));
+    vec2 screenTexSize = vec2(1.0)/fwidth(uv0);
+    return max(0.5*dot(unitRange, screenTexSize), 1.0);
+}
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+float RoundedRectSDF(vec2 sample_pos,vec2 rect_center,vec2 rect_half_size,float r)
+{
+    vec2 d2 = (abs(rect_center - sample_pos) - rect_half_size + vec2(r, r));
+    return min(max(d2.x, d2.y), 0.0) + length(max(d2, 0.0)) - r;
+}
 
 void main()
 {
-    frag_color = color0;
+    if(uv0.x > 0.0 || uv0.y > 0.0)
+    {
+        // draw font
+        vec3 msd = texture(font_image, uv0.xy).rgb;
+        float sd = median(msd.r, msd.g, msd.b);
+        float screenPxDistance = screenPxRange()*(sd - 0.5);
+        float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
+
+        frag_color = vec4(color0.rgb, opacity*color0.a);
+        
+    }
+    else
+    {
+        // basic rects
+        
+        // we need to shrink the rectangle's half-size
+        // that is used for distance calculations with
+        // the edge softness - otherwise the underlying
+        // primitive will cut off the falloff too early.
+
+        float softness = edge_softness0;
+        vec2  softness_padding = vec2(max(0, softness*2-1),max(0, softness*2-1));
+
+        // sample distance
+        float dist = RoundedRectSDF(dst_pos0,dst_center0,dst_half_size0-softness_padding, corner_radius0);
+
+        // map distance => a blend factor
+        float sdf_factor = 1.f - smoothstep(0, 2*softness, dist);
+
+        frag_color = color0 * sdf_factor;
+    }
 }
