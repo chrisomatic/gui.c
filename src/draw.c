@@ -3,7 +3,12 @@
 // API:
 //
 // void draw_clear_screen(float r, float g, float b);
-// void draw_rect(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+// void draw_rect(float x, float y, float w, float h, Vec4f color);
+// void draw_rect_frame(float x, float y, float w, float h, Vec4f color, float border_thickness);
+// void draw_rect_vgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+// void draw_rect_hgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+// void draw_set_rect_corner_radius(float r);
+// void draw_set_rect_edge_softness(float v);
 // void draw_string(float x, float y, float scale, Vec4f color, char* format, ...);
 // void draw_commit(); // needs to be called at the end of frame
 //
@@ -45,6 +50,7 @@ typedef struct
     Vec4f colors[4];
     float corner_radius;
     float edge_softness;
+    float border_thickness;
 } DrawRect;
 
 typedef struct
@@ -73,6 +79,10 @@ Image font_image = {0};
 
 DrawRect queued_rects[MAX_RECTS] = {0};
 int  rect_count = 0;
+
+bool scale_view = false;
+int default_corner_radius = 2.0;
+int default_edge_softness = 1.0;
 
 GLuint loc_res;
 GLuint loc_font_image;
@@ -206,6 +216,8 @@ void draw_init()
     glVertexAttribDivisor(8, 1);
     glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(100)); // edge_softness
     glVertexAttribDivisor(9, 1);
+    glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, sizeof(DrawRect),(const GLvoid*)(104)); // border_radius
+    glVertexAttribDivisor(10, 1);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -231,7 +243,7 @@ void draw_clear_screen(float r, float g, float b)
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void draw_rect(float x, float y, float w, float h, Vec4f color1, Vec4f color2)
+void draw_rect_full(float x, float y, float w, float h, Vec4f color1, Vec4f color2, bool gradient_horizontal, float border_thickness, float corner_radius, float edge_softness)
 {
     if(rect_count >= MAX_RECTS)
     {
@@ -253,14 +265,54 @@ void draw_rect(float x, float y, float w, float h, Vec4f color1, Vec4f color2)
 
     for(int i = 0; i < 4; ++i)
     {
-        rect->colors[i].x = i < 2 ? color1.x : color2.x;
-        rect->colors[i].y = i < 2 ? color1.y : color2.y;
-        rect->colors[i].z = i < 2 ? color1.z : color2.z;
-        rect->colors[i].w = i < 2 ? color1.w : color2.w;
+        if(gradient_horizontal)
+        {
+            rect->colors[i].x = i < 2 ? color1.x : color2.x;
+            rect->colors[i].y = i < 2 ? color1.y : color2.y;
+            rect->colors[i].z = i < 2 ? color1.z : color2.z;
+            rect->colors[i].w = i < 2 ? color1.w : color2.w;
+        }
+        else
+        {
+            rect->colors[i].x = (i == 0 || i == 2) ? color1.x : color2.x;
+            rect->colors[i].y = (i == 0 || i == 2) ? color1.y : color2.y;
+            rect->colors[i].z = (i == 0 || i == 2) ? color1.z : color2.z;
+            rect->colors[i].w = (i == 0 || i == 2) ? color1.w : color2.w;
+        }
     }
 
-    rect->corner_radius = 10.0;
-    rect->edge_softness = 1.0;
+    rect->corner_radius = corner_radius;
+    rect->edge_softness = edge_softness;
+    rect->border_thickness = border_thickness;
+}
+
+void draw_rect(float x, float y, float w, float h, Vec4f color)
+{
+    draw_rect_full(x, y, w, h, color, color, true, 0.0, default_corner_radius, default_edge_softness);
+}
+
+void draw_rect_frame(float x, float y, float w, float h, Vec4f color, float border_thickness)
+{
+    draw_rect_full(x, y, w, h, color, color, true, border_thickness, default_corner_radius, default_edge_softness);
+}
+
+void draw_rect_hgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2)
+{
+    draw_rect_full(x, y, w, h, color1, color2, true, 0.0, default_corner_radius, default_edge_softness);
+}
+
+void draw_rect_vgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2)
+{
+    draw_rect_full(x, y, w, h, color1, color2, false, 0.0, default_corner_radius, default_edge_softness);
+}
+
+void draw_set_rect_corner_radius(float r)
+{
+    default_corner_radius = r;
+}
+void draw_set_rect_edge_softness(float v)
+{
+    default_edge_softness = v;
 }
 
 // w,h
@@ -385,7 +437,14 @@ void draw_commit()
     glBindTexture(GL_TEXTURE_2D, font_image.texture);
     glUniform1i(loc_font_image, 0);
 
-    glUniform2f(loc_res,(float)view_width, (float)view_height);
+    if(scale_view)
+    {
+        glUniform2f(loc_res,(float)view_width, (float)view_height);
+    }
+    else
+    {
+        glUniform2f(loc_res,(float)window_width, (float)window_height);
+    }
 
     glUniform2f(loc_verts[0], -1.0, -1.0);
     glUniform2f(loc_verts[1], -1.0, +1.0);
@@ -407,6 +466,7 @@ void draw_commit()
     glEnableVertexAttribArray(7);
     glEnableVertexAttribArray(8);
     glEnableVertexAttribArray(9);
+    glEnableVertexAttribArray(10);
 
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, rect_count); 
     rect_count = 0;
@@ -421,6 +481,7 @@ void draw_commit()
     glDisableVertexAttribArray(7);
     glDisableVertexAttribArray(8);
     glDisableVertexAttribArray(9);
+    glDisableVertexAttribArray(10);
 
     glBindVertexArray(0);
     glUseProgram(0);

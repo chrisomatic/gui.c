@@ -5,13 +5,14 @@ uniform vec2 verts[4];
 
 uniform sampler2D font_image;
 
-layout (location = 0) in vec2 dst_p0; // top-left on screen
-layout (location = 1) in vec2 dst_p1; // bottom-right on screen
-layout (location = 2) in vec2 src_p0; // top-left of texture
-layout (location = 3) in vec2 src_p1; // bottom-left of texture
-layout (location = 4) in vec4 colors[4]; // takes up for slots
-layout (location = 8) in float corner_radius;
-layout (location = 9) in float edge_softness;
+layout (location = 0)  in vec2 dst_p0; // top-left on screen
+layout (location = 1)  in vec2 dst_p1; // bottom-right on screen
+layout (location = 2)  in vec2 src_p0; // top-left of texture
+layout (location = 3)  in vec2 src_p1; // bottom-left of texture
+layout (location = 4)  in vec4 colors[4]; // takes up for slots
+layout (location = 8)  in float corner_radius;
+layout (location = 9)  in float edge_softness;
+layout (location = 10) in float border_thickness;
 
 // outputs
 
@@ -22,6 +23,7 @@ out vec2 dst_center0;
 out vec2 dst_pos0;
 out float corner_radius0;
 out float edge_softness0;
+out float border_thickness0;
 
 void main()
 {
@@ -50,4 +52,5 @@ void main()
     
     corner_radius0 = corner_radius;
     edge_softness0 = edge_softness;
+    border_thickness0 = border_thickness;
 }

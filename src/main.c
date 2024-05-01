@@ -142,12 +142,30 @@ void deinit()
 
 void draw()
 {
-    draw_clear_screen(0.0,0.0,0.0);
+    draw_clear_screen(0.1,0.1,0.1);
+
+    // void draw_rect(float x, float y, float w, float h, Vec4f color);
+    // void draw_rect_frame(float x, float y, float w, float h, Vec4f color, float border_thickness);
+    // void draw_rect_vgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+    // void draw_rect_hgrad(float x, float y, float w, float h, Vec4f color1, Vec4f color2);
+
 
     // draw stuff
-    draw_rect(10,10,100,100, MAGENTA, BLUE);
-    draw_rect(300,20,500,120,GREEN, GRAY);
+    draw_rect(300,20,500,120,GREEN);
+
+    draw_rect_vgrad(10,10,100,100, MAGENTA, BLUE);
+    draw_rect_frame(10,10,100,100, GREEN, 3.0);
+
+    draw_set_rect_corner_radius(20);
+    draw_rect_hgrad(300,300,120,120,colora(1.0,0.0,0.0,0.5), colora(1.0,1.0,0.0,0.5));
+    draw_rect_hgrad(240,240,120,120,colora(1.0,0.0,1.0,0.5), colora(0.0,1.0,1.0,0.5));
+    draw_set_rect_corner_radius(2);
+
+    float mx, my;
+    window_get_mouse_coords(&mx, &my);
+
     draw_string(14,14,0.3, WHITE, "Hello\nKam");
+    draw_string(4,window_height - 64,0.8, YELLOW, "Mouse: %.0f, %.0f", mx, my);
 
     draw_commit();
 }

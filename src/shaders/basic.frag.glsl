@@ -8,6 +8,7 @@ in vec2 dst_center0;
 in vec2 dst_pos0;
 in float corner_radius0;
 in float edge_softness0;
+in float border_thickness0;
 
 out vec4 frag_color;
 
@@ -40,16 +41,10 @@ void main()
         float opacity = clamp(screenPxDistance + 0.5, 0.0, 1.0);
 
         frag_color = vec4(color0.rgb, opacity*color0.a);
-        
     }
     else
     {
         // basic rects
-        
-        // we need to shrink the rectangle's half-size
-        // that is used for distance calculations with
-        // the edge softness - otherwise the underlying
-        // primitive will cut off the falloff too early.
 
         float softness = edge_softness0;
         vec2  softness_padding = vec2(max(0, softness*2-1),max(0, softness*2-1));
@@ -59,7 +54,27 @@ void main()
 
         // map distance => a blend factor
         float sdf_factor = 1.f - smoothstep(0, 2*softness, dist);
+        
+        float border_factor = 1.f;
+        if(border_thickness0 != 0.0)
+        {
+            vec2 interior_half_size = dst_half_size0 - vec2(border_thickness0);
 
-        frag_color = color0 * sdf_factor;
+            float interior_radius_reduce_f = 
+                min(interior_half_size.x/dst_half_size0.x,
+                interior_half_size.y/dst_half_size0.y);
+            float interior_corner_radius = corner_radius0 * interior_radius_reduce_f * interior_radius_reduce_f;
+
+            // calculate sample distance from "interior"
+            float inside_d = RoundedRectSDF(dst_pos0, dst_center0,
+                                          interior_half_size-softness_padding,
+                                          interior_corner_radius);
+
+            // map distance => factor
+            float inside_f = smoothstep(0, 2*softness, inside_d);
+            border_factor = inside_f;
+        }
+
+        frag_color = color0 * sdf_factor * border_factor;
     }
 }
