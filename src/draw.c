@@ -80,7 +80,7 @@ Image font_image = {0};
 DrawRect queued_rects[MAX_RECTS] = {0};
 int  rect_count = 0;
 
-bool scale_view = false;
+bool scale_view = true;
 int default_corner_radius = 2.0;
 int default_edge_softness = 1.0;
 

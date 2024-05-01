@@ -7,9 +7,6 @@
 #define VIEW_HEIGHT  400
 #endif
 
-#define MIN(x,y) ((x) < (y) ? (x) : (y))
-#define MAX(x,y) ((x) > (y) ? (x) : (y))
-
 // strings
 #define STR_EMPTY(x)      (x == 0 || strlen(x) == 0)
 #define STR_EQUAL(x,y)    (strncmp((x),(y),strlen((x))) == 0 && strlen(x) == strlen(y))
