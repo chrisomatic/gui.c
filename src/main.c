@@ -1,27 +1,4 @@
-
-// System libs
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <math.h>
-#include <time.h>
-#include <float.h>
-#include <unistd.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-
-// For timing
-#if _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <profileapi.h>
-#else
-#include <sys/time.h>
-#endif
-
-// Open GL,,
+// Open GL
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -31,16 +8,17 @@
 #include "stb/stb_image.h"
 
 // Local libs
-#include "util.c"
-#include "base_math.c"
+#include "base.h"
 #include "window.c"
 #include "shader.c"
 #include "draw.c"
 #include "ui_core.c"
-#include "timer.c"
+
+#define VIEW_WIDTH   1200
+#define VIEW_HEIGHT  800
 
 // =========================
-// Global Varsc
+// Global Vars
 // =========================
 
 bool paused = false;

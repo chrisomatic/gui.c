@@ -115,7 +115,6 @@ void shader_deinit()
     glDeleteProgram(program);
 }
 
-
 void shader_set_int(GLuint program, const char* name, int i)
 {
     glUniform1i(glGetUniformLocation(program, name), i);
